@@ -1,0 +1,114 @@
+---
+title: "Practical Machine Learning Project"
+author: "Dulce Magaña"
+date: "6/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+## Load the required libraries
+
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+```
+
+## Data Processing
+
+The seed is set to ensure reproducibility and the data is read and cleaned up. 
+
+```{r}
+set.seed(1234)
+trainingSet <- read.csv('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', na.strings = c("NA","#DIV/0!", ""))
+testingSet <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', na.strings = c("NA","#DIV/0!", ""))
+```
+
+The columns with all missing values were deleted. Besides, the variables that are irrelevant to the analysis were removed (columns 1-7).
+
+```{r}
+trainingSet <- trainingSet[,colSums(is.na(trainingSet)) == 0]
+testingSet <- testingSet[,colSums(is.na(testingSet)) == 0]
+
+trainingSet <- trainingSet[,-c(1:7)]
+testingSet <- testingSet[,-c(1:7)]
+```
+
+The original training dataset has 19622 observations and 160 variables, and the testing data set contains 20 observations and the same variables as the training set. The new training and testing dataset has 53 variables, and the observations do not suffer any change. The objective is to predict the outcome of the variable classe in the training set.
+
+## Data splitting
+
+In order to get out-of-sample errors, we split the cleaned training set into a training set (train, 70%) for prediction and a validation set (valid 30%) to compute the out-of-sample errors.
+
+```{r}
+inTrain <- createDataPartition(trainingSet$classe, p = 0.7, list = FALSE)
+train <- trainingSet[inTrain, ]
+valid <- trainingSet[-inTrain, ]
+```
+
+## Prediction models
+
+In this document, classification trees and random forest will be applied to predict the outcome.
+
+### Prediction model 1: Classification Trees
+
+For k-fold cross validation, common values are k=3, k=5, and k=10, and by far the most popular value used in applied machine learning to evaluate models is k=10. In this paper, 10-fold cross validation was considered, and since data transformations may be less important in non-linear models like classification trees, the variables were not transformed.
+
+```{r}
+model1 <- rpart(classe ~ ., data = train, method = "class")
+
+# Predict outcomes using the validation set
+prediction1 <- predict(model1, valid, type = "class")
+
+# Plot the decision tree
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+```
+
+Now, it is time to test results on our validation dataset:
+
+```{r}
+confusionMatrix(prediction1, as.factor(valid$classe))
+```
+
+From the confusion matrix, the accuracy rate of the classification tree is 0.7541.
+
+### Prediction Model 2: Random Forests
+
+Since classification tree does not perform quite well, random forest method was tried.
+
+```{r}
+model2 <- randomForest(as.factor(classe) ~., data = train, method = "class")
+
+# Predict outcomes using the validation set
+prediction2 <- predict(model2, valid, type = "class")
+
+# Test results on validation data set:
+confusionMatrix(prediction2, as.factor(valid$classe))
+```
+
+From the confusion matrix, the accuracy rate of the random forest is 0.9956.
+
+
+### Decision on which Prediction Model to Use:
+
+The Random Forest model is choose because it performed better than Classification Trees with an accuracy of 0.995 vs 0.754 respectively.  The expected out-of-sample error is estimated at 0.005. Although, it is important to mention that this algorithm is sometimes difficult to interpret and computationally inefficient.
+
+## Prediction on Testing Set
+
+With the above conclusion, random forest is used to predict the outcome variable classe for the testing set.
+
+```{r}
+# predict outcome levels on the original Testing data set using Random Forest algorithm
+predictfinal <- predict(model2, testingSet, type="class")
+predictfinal
+```
